@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">RANGA mark</title>
+  <desc id="desc">Transparent shield mark with a field signal and R monogram.</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path
+      d="M256 42 414 106v116c0 102-63 187-158 246-95-59-158-144-158-246V106L256 42Z"
+      stroke="#002259"
+      stroke-width="25"
+    />
+    <path d="M152 356c34-38 70-58 108-58 39 0 72 18 100 54" stroke="#79adf8" stroke-width="20" />
+    <path d="M184 382c24-25 49-38 76-38 28 0 51 12 70 35" stroke="#2670dc" stroke-width="14" />
+    <path d="M356 151c30 29 48 68 48 111" stroke="#0dde53" stroke-width="15" />
+    <path d="M320 174c22 22 35 52 35 85" stroke="#0dde53" stroke-width="13" />
+    <path d="M288 197c14 15 22 35 22 57" stroke="#0dde53" stroke-width="11" />
+  </g>
+  <text
+    x="246"
+    y="293"
+    fill="#0042ab"
+    font-family="Instrument Sans, Arial, sans-serif"
+    font-size="178"
+    font-weight="760"
+    text-anchor="middle"
+  >
+    R
+  </text>
+</svg>

@@ -1,169 +1,577 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { ArrowUpRight, Cpu, Database, Fingerprint, ShieldCheck } from "lucide-react";
-import { BrandLogo, SegmentedPill, SkyStage } from "@/components/brand-surface";
-import { ConnectWallet } from "@/components/connect-wallet";
-import { EnvStatus } from "@/components/env-status";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { publicEnv } from "@/lib/env/public";
-import { truncateMiddle } from "@/lib/utils";
-import { RedirectConnectedWallet } from "@/components/wallet-route-effects";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { AnalyzeResponse } from '../lib/agents';
 
-export default function HomePage() {
+type AgentStatus = 'idle' | 'loading' | 'complete' | 'error';
+type AgentKey = keyof AnalyzeResponse;
+
+const agents: Array<[AgentKey, string]> = [
+  ['camera_agent', 'Camera Agent'],
+  ['animal_detection_agent', 'Animal Detection Agent'],
+  ['gps_agent', 'GPS Agent'],
+  ['weather_agent', 'Weather Agent'],
+  ['poaching_risk_agent', 'Poaching Risk Agent'],
+  ['alert_agent', 'Alert Agent'],
+  ['final_report', 'Orchestrator Agent'],
+];
+
+function statusLabel(status: AgentStatus) {
+  if (status === 'loading') return 'Analyzing';
+  if (status === 'complete') return 'Complete';
+  if (status === 'error') return 'Error';
+  return 'Idle';
+}
+
+function formatDuration(milliseconds: number | null) {
+  if (milliseconds === null) return '-';
+  const seconds = milliseconds / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = Math.round(seconds % 60)
+    .toString()
+    .padStart(2, '0');
+  return `${minutes}:${remainder}`;
+}
+
+function summarizeAgentOutput(key: AgentKey, output?: AnalyzeResponse[AgentKey]) {
+  if (!output) return 'Waiting for analysis.';
+
+  switch (key) {
+    case 'camera_agent': {
+      const result = output as AnalyzeResponse['camera_agent'];
+      return `${result.image_quality} image, ${result.lighting}, ${result.usable ? 'usable' : 'not usable'}`;
+    }
+    case 'animal_detection_agent': {
+      const result = output as AnalyzeResponse['animal_detection_agent'];
+      const presence = [
+        result.human_presence ? 'human visible' : '',
+        result.vehicle_presence ? 'vehicle visible' : '',
+      ]
+        .filter(Boolean)
+        .join(', ');
+      return `${result.count} ${result.species}, ${result.behavior}${presence ? `, ${presence}` : ''}`;
+    }
+    case 'gps_agent': {
+      const result = output as AnalyzeResponse['gps_agent'];
+      return `${result.location_label}, ${result.zone_type} zone, ${result.boundary_risk} boundary risk`;
+    }
+    case 'weather_agent': {
+      const result = output as AnalyzeResponse['weather_agent'];
+      return `${result.condition}, ${result.visibility} visibility, ${result.risk_modifier} modifier`;
+    }
+    case 'poaching_risk_agent': {
+      const result = output as AnalyzeResponse['poaching_risk_agent'];
+      return `${result.risk_level} risk, ${Math.round(result.risk_score)}/100`;
+    }
+    case 'alert_agent': {
+      const result = output as AnalyzeResponse['alert_agent'];
+      return `${result.priority}, ${result.action}`;
+    }
+    case 'final_report': {
+      const result = output as AnalyzeResponse['final_report'];
+      return `${result.priority}, ${result.risk_level} risk, ${Math.round(result.risk_score)}/100`;
+    }
+  }
+}
+
+function AgentCard({
+  agentKey,
+  label,
+  output,
+  status,
+  expanded,
+  onToggle,
+}: {
+  agentKey: AgentKey;
+  label: string;
+  output?: AnalyzeResponse[AgentKey];
+  status: AgentStatus;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const cardStatus = output ? 'complete' : status;
+  const isActive = status === 'loading' && !output;
+  const isExpanded = Boolean(output && expanded);
+  const summary = isActive ? 'Running.' : summarizeAgentOutput(agentKey, output);
+
   return (
-    <SkyStage>
-      <RedirectConnectedWallet />
-      <div className="sky-content flex min-h-screen flex-col px-5 py-5 sm:px-9 sm:py-7">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <BrandLogo />
-          <nav className="hidden gap-9 text-base font-bold lg:flex">
-            <a href="#memory" className="hover:opacity-60">
-              Passport
-            </a>
-            <a href="#identity" className="hover:opacity-60">
-              Ownership
-            </a>
-            <a href="#compute" className="hover:opacity-60">
-              Recall
-            </a>
-          </nav>
-          <div className="flex items-center gap-3">
-            <SegmentedPill left="Private" right="Owned" />
-            <ConnectWallet />
-          </div>
-        </header>
+    <article className={`agent-card ${isExpanded ? 'is-expanded' : ''} ${isActive ? 'is-active' : ''}`}>
+      <div className="agent-card-head">
+        <div className="agent-card-main">
+          <div className="agent-name">{label}</div>
+          <div className="agent-summary">{summary}</div>
+        </div>
+        <div className="agent-card-actions">
+          {output ? (
+            <button
+              className="agent-detail-button"
+              type="button"
+              aria-expanded={expanded}
+              onClick={onToggle}
+            >
+              {expanded ? 'Hide' : 'Details'}
+            </button>
+          ) : null}
+          <div className={`status-pill status-${cardStatus}`}>{statusLabel(cardStatus)}</div>
+        </div>
+      </div>
+      {isExpanded ? <pre className="agent-output">{JSON.stringify(output, null, 2)}</pre> : null}
+    </article>
+  );
+}
 
-        <section className="grid flex-1 items-center gap-8 py-10 xl:grid-cols-[0.78fr_1.24fr_0.88fr]">
-          <div className="ambient-rise order-2 max-w-sm space-y-6 xl:order-1">
-            <FeatureCard />
-            <ReadinessCard />
-          </div>
+export default function Home() {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [location, setLocation] = useState('');
+  const [payload, setPayload] = useState<AnalyzeResponse | null>(null);
+  const [status, setStatus] = useState<AgentStatus>('idle');
+  const [error, setError] = useState('');
+  const [cameraError, setCameraError] = useState('');
+  const [cameraActive, setCameraActive] = useState(false);
+  const [expandedAgent, setExpandedAgent] = useState<AgentKey | null>(null);
+  const [analysisTimestamp, setAnalysisTimestamp] = useState('');
+  const [imageSourceLabel, setImageSourceLabel] = useState('');
+  const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null);
+  const [elapsedMs, setElapsedMs] = useState<number | null>(null);
+  const [completedDurationMs, setCompletedDurationMs] = useState<number | null>(null);
 
-          <div className="ambient-rise order-1 mx-auto max-w-3xl text-center xl:order-2">
-            <Badge tone="neutral" className="mb-8 bg-white/80">
-              Portable private agent passport
-            </Badge>
-            <h1 className="brand-display text-[clamp(3.45rem,6.7vw,7.7rem)]">
-              Give your AI memory
-              <br />
-              it can actually own.
-            </h1>
-            <p className="mx-auto mt-6 max-w-xl text-base font-bold leading-7 text-black/58">
-              OGPass turns your wallet into the control point for an AI companion: an Agentic ID on 0G Chain,
-              encrypted memory capsules on 0G Storage, and wallet-signed 0G Compute recall.
+  const report = payload?.final_report;
+  const completedAgents = useMemo(() => {
+    if (!payload) return 0;
+    return agents.filter(([key]) => payload[key]).length;
+  }, [payload]);
+
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  useEffect(() => {
+    if (status !== 'loading' || analysisStartedAt === null) return;
+
+    const updateElapsed = () => setElapsedMs(performance.now() - analysisStartedAt);
+    updateElapsed();
+    const timer = window.setInterval(updateElapsed, 250);
+
+    return () => window.clearInterval(timer);
+  }, [analysisStartedAt, status]);
+
+  function clearReport() {
+    setPayload(null);
+    setExpandedAgent(null);
+    setAnalysisTimestamp('');
+    setAnalysisStartedAt(null);
+    setElapsedMs(null);
+    setCompletedDurationMs(null);
+  }
+
+  function useFile(file?: File, sourceLabel = 'Uploaded image') {
+    if (!file) return;
+    setSelectedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    setImageSourceLabel(sourceLabel);
+    clearReport();
+    setError('');
+  }
+
+  function setLocationText(value: string) {
+    setLocation(value);
+    clearReport();
+  }
+
+  function markLocationUnknown() {
+    setError('');
+    setLocationText('Location unavailable. Operator does not know exact GPS coordinates.');
+  }
+
+  function useDeviceLocation() {
+    setError('');
+
+    if (!navigator.geolocation) {
+      setError('Device location is not available in this browser.');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        setLocationText(
+          `Current device location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}. Accuracy approximately ${Math.round(
+            accuracy,
+          )} meters.`,
+        );
+      },
+      (locationError) => {
+        setError(locationError.message || 'Could not get device location.');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000,
+      },
+    );
+  }
+
+  async function startCamera() {
+    setCameraError('');
+    setError('');
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('Camera access is not available in this browser.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setCameraActive(true);
+    } catch (cameraAccessError) {
+      setCameraActive(false);
+      setCameraError(
+        cameraAccessError instanceof Error ? cameraAccessError.message : 'Camera permission was denied.',
+      );
+    }
+  }
+
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  }
+
+  async function captureCameraFrame() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (!video || !canvas || !cameraActive || video.videoWidth === 0 || video.videoHeight === 0) {
+      throw new Error('Start the camera before capturing a frame.');
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Could not capture a camera frame.');
+    }
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((frameBlob) => {
+        if (frameBlob) {
+          resolve(frameBlob);
+        } else {
+          reject(new Error('Could not encode the camera frame.'));
+        }
+      }, 'image/jpeg', 0.92);
+    });
+
+    const file = new File([blob], `camera-frame-${Date.now()}.jpg`, { type: 'image/jpeg' });
+    useFile(file, 'Captured frame');
+    stopCamera();
+    return file;
+  }
+
+  async function analyzeCase(imageOverride?: File) {
+    setError('');
+
+    const imageForAnalysis = imageOverride || selectedFile;
+
+    if (!imageForAnalysis) {
+      setError('Upload a PNG or JPEG trail-camera image.');
+      return;
+    }
+
+    if (!location.trim()) {
+      setError('Enter GPS coordinates or a location description.');
+      return;
+    }
+
+    const startedAt = performance.now();
+    setPayload(null);
+    setExpandedAgent(null);
+    setAnalysisTimestamp('');
+    setAnalysisStartedAt(startedAt);
+    setElapsedMs(0);
+    setCompletedDurationMs(null);
+    setStatus('loading');
+
+    const formData = new FormData();
+    formData.append('image', imageForAnalysis);
+    formData.append('location', location.trim());
+
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        body: formData,
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(result.error || `Analysis failed with status ${response.status}.`);
+      }
+
+      const duration = performance.now() - startedAt;
+      setPayload(result);
+      setAnalysisTimestamp(new Date().toLocaleString());
+      setElapsedMs(duration);
+      setCompletedDurationMs(duration);
+      setAnalysisStartedAt(null);
+      setStatus('complete');
+    } catch (analysisError) {
+      const duration = performance.now() - startedAt;
+      setElapsedMs(duration);
+      setCompletedDurationMs(duration);
+      setAnalysisStartedAt(null);
+      setStatus('error');
+      setExpandedAgent(null);
+      setError(analysisError instanceof Error ? analysisError.message : 'Analysis failed.');
+    }
+  }
+
+  const riskLevel = report ? String(report.risk_level).toLowerCase() : 'awaiting';
+  const score = report ? `${report.risk_score}/100` : '-';
+  const timerVisible = status === 'loading' || completedDurationMs !== null;
+  const timerLabel = status === 'loading' ? 'Running' : status === 'error' ? 'Stopped after' : 'Finished in';
+  const timerValue = status === 'loading' ? elapsedMs : completedDurationMs;
+
+  return (
+    <main className="shell">
+      <section className="topbar" aria-label="Case header">
+        <div className="brand-lockup">
+          <img className="brand-mark" src="/icons/logo.svg" alt="" aria-hidden="true" />
+          <div>
+            <p className="eyebrow">RANGA</p>
+            <h1>Poaching Watch Live</h1>
+          </div>
+        </div>
+        <div className="topbar-actions">
+          <div className="model-chip">Gemma 4 via Cerebras</div>
+        </div>
+      </section>
+
+      <section className="dashboard" aria-label="Incident analysis dashboard">
+        <aside className="panel input-panel" aria-label="Case input">
+          <div className={`image-frame ${previewUrl || cameraActive ? 'has-image' : ''}`}>
+            <video
+              ref={videoRef}
+              className={cameraActive ? 'camera-video is-visible' : 'camera-video'}
+              muted
+              playsInline
+              autoPlay
+            />
+            {previewUrl && !cameraActive ? (
+              <img src={previewUrl} alt="Uploaded trail camera preview" />
+            ) : null}
+            {!previewUrl && !cameraActive ? (
+              <div className="image-empty">No image selected</div>
+            ) : null}
+            {cameraActive ? <div className="image-state-tag">Live camera</div> : null}
+            {previewUrl && !cameraActive ? (
+              <div className="image-state-tag">
+                {imageSourceLabel === 'Captured frame' ? 'Captured frame selected' : 'Image selected'}
+              </div>
+            ) : null}
+          </div>
+          <canvas ref={canvasRef} className="capture-canvas" aria-hidden="true" />
+
+          <div className={cameraActive ? 'camera-strip is-live' : 'camera-strip'} aria-label="Camera controls">
+            {cameraActive ? (
+              <>
+                <button
+                  className="primary-button camera-action"
+                  type="button"
+                  disabled={status === 'loading'}
+                  onClick={() =>
+                    captureCameraFrame().catch((frameError) =>
+                      setError(frameError instanceof Error ? frameError.message : 'Could not capture a camera frame.'),
+                    )
+                  }
+                >
+                  Capture photo
+                </button>
+                <button
+                  className="glass-button"
+                  type="button"
+                  disabled={status === 'loading'}
+                  onClick={stopCamera}
+                >
+                  Close camera
+                </button>
+              </>
+            ) : (
+              <button className="glass-button" type="button" disabled={status === 'loading'} onClick={startCamera}>
+                Open camera
+              </button>
+            )}
+          </div>
+          {previewUrl && !cameraActive ? (
+            <p className="image-selection-note">
+              {imageSourceLabel === 'Captured frame'
+                ? 'Captured frame is selected for analysis.'
+                : 'Uploaded image is selected for analysis.'}
             </p>
-            <div className="mt-7 flex flex-col items-center gap-3">
-              <Button asChild className="group h-14 pl-7 pr-2 text-base">
-                <Link href="/connect">
-                  Create passport
-                  <span className="yellow-dot h-10 w-10 group-hover:rotate-12">
-                    <ArrowUpRight aria-hidden="true" size={20} />
-                  </span>
-                </Link>
-              </Button>
-              <a href="#memory" className="text-base font-bold text-black/68 hover:text-black">
-                See the ownership loop
-              </a>
+          ) : null}
+          {cameraError ? <p className="camera-error">{cameraError}</p> : null}
+
+          <label className="field-label" htmlFor="imageInput">
+            Trail-camera image
+          </label>
+          <input
+            id="imageInput"
+            className="file-input"
+            type="file"
+            accept="image/png,image/jpeg"
+            disabled={status === 'loading'}
+            onChange={(event) => useFile(event.target.files?.[0])}
+          />
+
+          <label className="field-label" htmlFor="locationInput">
+            GPS or location
+          </label>
+          <div className="location-tools" aria-label="Location helpers">
+            <button
+              className="glass-button"
+              type="button"
+              disabled={status === 'loading'}
+              onClick={useDeviceLocation}
+            >
+              Use device location
+            </button>
+            <button
+              className="glass-button"
+              type="button"
+              disabled={status === 'loading'}
+              onClick={markLocationUnknown}
+            >
+              Location unknown
+            </button>
+          </div>
+          <textarea
+            id="locationInput"
+            rows={4}
+            placeholder="GPS, patrol sector, landmark, reserve gate, or note that location is unknown"
+            value={location}
+            disabled={status === 'loading'}
+            onChange={(event) => setLocationText(event.target.value)}
+          />
+
+          <div className="button-row">
+            <button
+              className="primary-button"
+              type="button"
+              disabled={status === 'loading'}
+              onClick={() => analyzeCase()}
+            >
+              {status === 'loading' ? 'Analyzing...' : 'Analyze'}
+            </button>
+          </div>
+
+          <p className="error-message" role="alert">
+            {error}
+          </p>
+        </aside>
+
+        <section className="panel report-panel" aria-label="Final incident report">
+          <div className="report-head">
+            <div>
+              <p className="section-kicker">Incident Summary</p>
+              <h2>{report ? `${report.priority} ${report.risk_level} risk incident` : 'Awaiting case analysis'}</h2>
+              {analysisTimestamp ? (
+                <p className="analysis-meta">
+                  API result from {imageSourceLabel || 'selected image'} at {analysisTimestamp}
+                </p>
+              ) : null}
+            </div>
+            <div className="report-status-stack">
+              <div className={`risk-badge risk-${riskLevel.replaceAll(' ', '-')}`}>{riskLevel}</div>
+              {timerVisible ? (
+                <div className="processing-meter" aria-live="polite">
+                  <span>{timerLabel}</span>
+                  <strong>{formatDuration(timerValue)}</strong>
+                </div>
+              ) : null}
             </div>
           </div>
 
-          <div className="ambient-rise order-3 max-w-md xl:ml-auto">
-            <LoopPanel />
+          <dl className="report-grid">
+            <div>
+              <dt>Species</dt>
+              <dd>{report?.species || '-'}</dd>
+            </div>
+            <div>
+              <dt>Count</dt>
+              <dd>{report?.count ?? '-'}</dd>
+            </div>
+            <div>
+              <dt>Risk Score</dt>
+              <dd>{score}</dd>
+            </div>
+            <div>
+              <dt>Priority</dt>
+              <dd>{report?.priority || '-'}</dd>
+            </div>
+          </dl>
+
+          <div className="recommendation-block">
+            <p className="section-kicker">Final Recommendation</p>
+            <p>{report?.recommendation || 'Run an analysis to produce a ranger recommendation.'}</p>
+          </div>
+
+          <div>
+            <p className="section-kicker">Evidence</p>
+            <ul className="evidence-list">
+              {(report?.evidence?.length ? report.evidence : ['No evidence collected yet.']).map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </div>
         </section>
-      </div>
-    </SkyStage>
-  );
-}
 
-function FeatureCard() {
-  return (
-    <article id="memory" className="white-card overflow-hidden rounded-[2.35rem] p-4">
-      <div className="rounded-[1.8rem] bg-[#edf5f7] p-5">
-        <div className="mb-4 flex items-center justify-between text-sm font-bold">
-          <span className="inline-flex items-center gap-2">
-            <Database aria-hidden="true" size={15} />
-            Passport flow
-          </span>
-          <span className="text-black/45">owned</span>
-        </div>
-        <div className="grid gap-3">
-          <FlowStep label="Mint agent passport" tone="black" />
-          <FlowStep label="Seal memory capsule" tone="yellow" />
-          <FlowStep label="Recall with 0G Direct" tone="green" />
-        </div>
-      </div>
-      <div className="px-5 py-6 text-center">
-        <h2 className="text-2xl font-black leading-tight">The agent follows the owner, not the platform</h2>
-        <Button asChild variant="secondary" className="mt-6">
-          <Link href="/connect">Connect wallet</Link>
-        </Button>
-      </div>
-    </article>
-  );
-}
-
-function FlowStep({ label, tone }: { label: string; tone: "black" | "yellow" | "green" }) {
-  const tones = {
-    black: "bg-black text-white",
-    yellow: "bg-[#ffcf3f] text-black",
-    green: "bg-[#20c86b] text-white",
-  };
-  return (
-    <div className="flex items-center justify-between rounded-full bg-white/78 p-2 pl-4">
-      <span className="text-sm font-bold">{label}</span>
-      <span className={`h-8 w-8 rounded-full ${tones[tone]}`} />
-    </div>
-  );
-}
-
-function ReadinessCard() {
-  return (
-    <article className="white-card rounded-[2rem] p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-sm font-bold text-black/45">Readiness</div>
-          <div className="brand-display mt-1 text-5xl">real</div>
-        </div>
-        <span className="yellow-dot">
-          <ArrowUpRight aria-hidden="true" size={18} />
-        </span>
-      </div>
-      <div className="mt-6">
-        <EnvStatus />
-      </div>
-    </article>
-  );
-}
-
-function LoopPanel() {
-  const contractDetail = publicEnv.agentIdContractAddress ? truncateMiddle(publicEnv.agentIdContractAddress, 7) : "contract configuration required";
-  const storageDetail = publicEnv.ogStorageIndexerRpc ? "0G Storage indexer configured" : "storage configuration required";
-
-  return (
-    <article className="glass-panel rounded-[2.25rem] p-6">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-xl font-black">Agent passport loop</h2>
-        <span className="text-3xl leading-none">...</span>
-      </div>
-      <LoopRow icon={<Fingerprint size={18} />} title="Own the passport" detail={contractDetail} />
-      <LoopRow icon={<Database size={18} />} title="Seal memory capsules" detail={storageDetail} />
-      <LoopRow icon={<Cpu size={18} />} title="Recall through compute" detail="wallet-signed 0G Direct calls" />
-      <LoopRow icon={<ShieldCheck size={18} />} title="Keep continuity portable" detail="identity and memory are not app-locked" />
-    </article>
-  );
-}
-
-function LoopRow({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) {
-  return (
-    <div className="flex items-center gap-4 border-b border-black/10 py-4 last:border-b-0">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-black">{icon}</div>
-      <div className="min-w-0 flex-1">
-        <div className="font-black">{title}</div>
-        <div className="truncate text-sm text-black/52">{detail}</div>
-      </div>
-    </div>
+        <aside className="panel agents-panel" aria-label="Specialist agents">
+          <div className="agents-head">
+            <p className="section-kicker">Agent Outputs</p>
+            <span>{status === 'loading' ? 'Running' : completedAgents ? `${completedAgents}/7 complete` : 'Idle'}</span>
+          </div>
+          <div className="agent-list">
+            {agents.map(([key, label]) => (
+              <AgentCard
+                key={key}
+                agentKey={key}
+                label={label}
+                output={payload?.[key]}
+                status={status}
+                expanded={expandedAgent === key}
+                onToggle={() => setExpandedAgent((current) => (current === key ? null : key))}
+              />
+            ))}
+          </div>
+        </aside>
+      </section>
+    </main>
   );
 }

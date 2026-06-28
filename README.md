@@ -1,107 +1,47 @@
-# OGPass
+# RANGA
 
-private ai memory passport on 0G.
+Next.js single-dashboard poaching-risk command center using a LangGraph multi-agent workflow. Every graph node calls Gemma 4 through Cerebras.
 
-connect a wallet, mint an ERC-7857 agent id, encrypt memories in the browser, upload ciphertext to 0G Storage, and use those memories with wallet-signed 0G Compute. you own the passport. OGPass never holds your private key or plaintext memory.
-
-live at [ogpass-fawuzantechs-projects.vercel.app](https://ogpass-fawuzantechs-projects.vercel.app/)
-
-## what it does
-
-use your wallet as the control key for a portable ai companion.
-
-- connect with Family ConnectKit, wagmi, and viem
-- mint or read an ERC-7857 Agentic ID on 0G Galileo
-- encrypt memory locally before anything leaves the browser
-- upload encrypted memory capsules to 0G Storage with the connected wallet signer
-- anchor memory hashes and 0G roots on-chain
-- discover 0G Compute providers and call 0G Direct with wallet-signed requests
-- keep plaintext memory, app-owned storage keys, and app-owned compute secrets out of the dapp
-
-## how it works
-
-OGPass starts with an Agentic ID contract on 0G Chain. the connected wallet mints a passport with an initial memory commitment.
-
-when the owner adds memory, the browser encrypts the plaintext with a local vault key and creates a deterministic hash of the encrypted capsule. the encrypted bytes are uploaded to 0G Storage through the official SDK using the connected wallet signer.
-
-after storage confirms, the owner anchors the memory description, data hash, storage root, and ciphertext hash on the Agentic ID contract. the chain stores commitments and references, not plaintext.
-
-for recall, the user selects a 0G Compute provider, optionally supplies decrypted memory context locally, and sends the prompt through 0G Direct. provider discovery, funding, and inference are wallet-signed. there is no server proxy pretending to be compute.
-
-## contracts
-
-`contracts/OGPassAgentId.sol`
-
-ERC-7857 Agentic ID contract. stores owners, approvals, authorization, delegate access, intelligent data hashes, and encrypted memory anchor events. transfer and clone paths call a verifier contract.
-
-`contracts/TEEDataVerifier.sol`
-
-ERC-7857 verifier adapter for transfer validity proof output. it expects a configured TEE oracle address and rejects invalid proof output.
-
-`contracts/interfaces`
-
-minimal ERC-7857 metadata, verifier, and Agentic ID interfaces used by the contracts and app ABI.
-
-## stack
-
-next.js, react, typescript, tailwind, local shadcn-style components, lucide icons, connectkit, wagmi, viem, ethers, 0G Storage SDK, 0G Compute SDK, crypto-js, hardhat, solidity.
-
-## testnet config
-
-```text
-network: 0G galileo
-chain id: 16602
-rpc: https://evmrpc-testnet.0g.ai
-explorer: https://chainscan-galileo.0g.ai
-storage indexer: https://indexer-storage-testnet-turbo.0g.ai
-agent id contract: 0x833D1bBF1e30894cB20BF228485a43a22FCC3E2D
-verifier contract: 0x540dd6496FF29780458Da1bAb487C62F473525BF
-```
-
-## local development
+## Run
 
 ```bash
 npm install
+cp .env.example .env
+# add your Cerebras API key to .env
 npm run dev
-npm run lint
-npm run typecheck
-npm run build
 ```
 
-compile contracts:
+Open `http://localhost:3000`.
 
-```bash
-npm run contracts:compile
-```
+## Install as an app
 
-deploy contracts:
+RANGA is a progressive web app. In development it can be installed from `http://localhost:3000`; in production it must be served over HTTPS.
 
-```bash
-OG_RPC_URL=https://evmrpc-testnet.0g.ai \
-PRIVATE_KEY=... \
-ERC7857_VERIFIER_ADDRESS=... \
-npm run contracts:deploy
-```
+- Desktop Chrome/Edge: open the site, then use the browser install button or **Install app** from the menu.
+- Android Chrome: open the site, then use **Add to Home screen** or **Install app**.
+- iPhone/iPad Safari: open the site, tap Share, then **Add to Home Screen**.
 
-## env
+The app shell is cached for launch/offline viewing. Agent analysis is intentionally network-only because Gemma 4 via Cerebras must be called live.
 
-```text
-NEXT_PUBLIC_OG_NETWORK=galileo
-NEXT_PUBLIC_OG_CHAIN_ID=16602
-NEXT_PUBLIC_OG_RPC_URL=https://evmrpc-testnet.0g.ai
-NEXT_PUBLIC_OG_EXPLORER_URL=https://chainscan-galileo.0g.ai
-NEXT_PUBLIC_OG_STORAGE_INDEXER_RPC=https://indexer-storage-testnet-turbo.0g.ai
-NEXT_PUBLIC_AGENT_ID_CONTRACT_ADDRESS=0x833D1bBF1e30894cB20BF228485a43a22FCC3E2D
-```
+## Use
 
-## docs
+Upload a real PNG/JPEG trail-camera image or open the camera and capture a photo. The captured frame becomes the selected image preview. Enter the actual GPS/location text, then click **Analyze**. The dashboard shows elapsed processing time while the LangGraph agents run and the final duration after the response returns. Agent outputs and the final report come from LangGraph agent nodes that call Cerebras. If `CEREBRAS_API_KEY` is missing or Cerebras fails, the app returns a real error.
 
-product requirements: [docs/PRD.md](docs/PRD.md)
+## Endpoint
 
-design dna: [docs/brand-profile.json](docs/brand-profile.json)
+`POST /api/analyze`
 
-## contributing
+Multipart form fields:
 
-prs are welcome.
+- `image`: PNG or JPEG, max 7 MB
+- `location`: GPS coordinates or location text
 
-for partnerships or questions, reach out at ibrahimpima76@gmail.com.
+Returns:
+
+- `camera_agent`
+- `animal_detection_agent`
+- `gps_agent`
+- `weather_agent`
+- `poaching_risk_agent`
+- `alert_agent`
+- `final_report`

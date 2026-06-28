@@ -1,27 +1,39 @@
-import "./globals.css";
-
-import type { Metadata } from "next";
-import { Web3Provider } from "@/components/web3-provider";
+import './globals.css';
+import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
+import { PwaRegister } from './pwa-register';
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://ogpass-fawuzantechs-projects.vercel.app"),
-  title: "OGPass",
-  description: "Portable private memory passport for AI agents on 0G.",
-  icons: {
-    icon: "/icon.png",
+  title: 'RANGA',
+  description: 'Multi-agent poaching-risk command center powered by Gemma 4 via Cerebras.',
+  applicationName: 'RANGA',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'RANGA',
   },
-  openGraph: {
-    title: "OGPass",
-    description: "Private AI memory passport on 0G.",
-    images: ["/cover.png"],
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icons/favicon.svg', type: 'image/svg+xml' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    shortcut: ['/favicon.ico'],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export const viewport = {
+  themeColor: '#bdd7ff',
+};
+
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <Web3Provider>{children}</Web3Provider>
+        <PwaRegister />
+        {children}
       </body>
     </html>
   );
