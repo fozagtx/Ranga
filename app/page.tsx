@@ -5,6 +5,10 @@ import type { AnalyzeResponse } from '../lib/agents';
 
 type AgentStatus = 'idle' | 'loading' | 'complete' | 'error';
 type AgentKey = keyof AnalyzeResponse;
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+};
 
 const agents: Array<[AgentKey, string]> = [
   ['camera_agent', 'Camera Agent'],
@@ -139,6 +143,9 @@ export default function Home() {
   const [analysisStartedAt, setAnalysisStartedAt] = useState<number | null>(null);
   const [elapsedMs, setElapsedMs] = useState<number | null>(null);
   const [completedDurationMs, setCompletedDurationMs] = useState<number | null>(null);
+  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installMessage, setInstallMessage] = useState('Install RANGA on this device for faster field access.');
+  const [isInstalledApp, setIsInstalledApp] = useState(false);
 
   const report = payload?.final_report;
   const completedAgents = useMemo(() => {
@@ -149,6 +156,42 @@ export default function Home() {
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  useEffect(() => {
+    const standaloneQuery = window.matchMedia('(display-mode: standalone)');
+    const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean };
+
+    const updateInstalledState = () => {
+      const installed = standaloneQuery.matches || Boolean(navigatorWithStandalone.standalone);
+      setIsInstalledApp(installed);
+      if (installed) {
+        setInstallMessage('RANGA is installed on this device.');
+      }
+    };
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event as BeforeInstallPromptEvent);
+      setInstallMessage('RANGA can be installed on this device.');
+    };
+
+    const handleAppInstalled = () => {
+      setInstallPromptEvent(null);
+      setIsInstalledApp(true);
+      setInstallMessage('RANGA is installed on this device.');
+    };
+
+    updateInstalledState();
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+    standaloneQuery.addEventListener('change', updateInstalledState);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+      standaloneQuery.removeEventListener('change', updateInstalledState);
     };
   }, []);
 
@@ -353,11 +396,33 @@ export default function Home() {
     }
   }
 
+  async function promptInstallApp() {
+    if (isInstalledApp) {
+      setInstallMessage('RANGA is already installed on this device.');
+      return;
+    }
+
+    if (!installPromptEvent) {
+      setInstallMessage('Use the browser menu or share button to install RANGA / Add to Home Screen.');
+      return;
+    }
+
+    await installPromptEvent.prompt();
+    const choice = await installPromptEvent.userChoice.catch(() => ({ outcome: 'dismissed' as const, platform: '' }));
+    setInstallPromptEvent(null);
+    setInstallMessage(
+      choice.outcome === 'accepted'
+        ? 'RANGA install started.'
+        : 'Install dismissed. You can install RANGA later from this button.',
+    );
+  }
+
   const riskLevel = report ? String(report.risk_level).toLowerCase() : 'awaiting';
   const score = report ? `${report.risk_score}/100` : '-';
   const timerVisible = status === 'loading' || completedDurationMs !== null;
   const timerLabel = status === 'loading' ? 'Running' : status === 'error' ? 'Stopped after' : 'Finished in';
   const timerValue = status === 'loading' ? elapsedMs : completedDurationMs;
+  const installLabel = isInstalledApp ? 'Installed' : installPromptEvent ? 'Install app' : 'How to install';
 
   return (
     <main className="shell">
@@ -370,6 +435,15 @@ export default function Home() {
           </div>
         </div>
         <div className="topbar-actions">
+          <div className="install-callout" role="status" aria-live="polite">
+            <div className="install-copy">
+              <span>Installable app</span>
+              <strong>{installMessage}</strong>
+            </div>
+            <button className="install-button" type="button" onClick={promptInstallApp}>
+              {installLabel}
+            </button>
+          </div>
           <div className="model-chip">Gemma 4 via Cerebras</div>
         </div>
       </section>

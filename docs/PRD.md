@@ -35,8 +35,8 @@ RANGA is a one-dashboard command center for a ranger operator reviewing a trail-
 `/`
 
 - Purpose: analyze one trail-camera case end to end.
-- Visible data: RANGA logo, image/live camera/captured-frame preview, location input, elapsed analysis time, agent statuses/results, final report.
-- Allowed actions: choose image, open/stop live camera, capture a frame that becomes the selected image, enter typed location, request browser device location, mark location as unknown, analyze the selected image or captured frame.
+- Visible data: RANGA logo, installable-app callout, image/live camera/captured-frame preview, location input, elapsed analysis time, agent statuses/results, final report.
+- Allowed actions: install the PWA when the browser exposes the install prompt, choose image, open/stop live camera, capture a frame that becomes the selected image, enter typed location, request browser device location, mark location as unknown, analyze the selected image or captured frame.
 - Blocked actions: case persistence, login, account management, manual report editing.
 - Empty state: no final report until a real analyze request succeeds.
 - Error state: show the real backend error and do not invent outputs.
@@ -44,7 +44,7 @@ RANGA is a one-dashboard command center for a ranger operator reviewing a trail-
 - Completion timing: after a successful or failed analysis request, show the measured end-to-end processing time from submit to response/error.
 - Agent output behavior: agent rows stay compact by default; full structured JSON is visible only for the active/expanded row so the dashboard does not require scrolling through every agent result.
 - Camera behavior: camera controls must not require separate capture and analyze-frame mental models. Capturing a frame visibly updates the image preview and marks it as selected for the normal Analyze action.
-- PWA behavior: the app can be installed on supported browsers; offline state serves only the shell/offline page and must not imply Cerebras analysis can run without network.
+- PWA behavior: the app can be installed on supported browsers; the dashboard must visibly tell users RANGA is installable, trigger the native install flow when available, and fall back to browser/menu install guidance when the native prompt is unavailable. Offline state serves only the shell/offline page and must not imply Cerebras analysis can run without network.
 
 ## UI System
 
@@ -76,6 +76,7 @@ RANGA is a one-dashboard command center for a ranger operator reviewing a trail-
 - Location input supports exact GPS, approximate place text, browser device geolocation, or explicit unknown-location text without inventing coordinates.
 - Camera capture produces a visible selected-frame preview before analysis.
 - The dashboard shows a live analysis timer during processing and the final processing duration after completion.
+- The dashboard shows an install-app callout/button and does not hide PWA installability in documentation only.
 - Gemma 4 via Cerebras is called.
 - Camera, Animal Detection, GPS, Weather, Poaching Risk, and Alert agents return structured JSON.
 - Orchestrator produces `final_report`.
